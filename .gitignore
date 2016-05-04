@@ -1,0 +1,7 @@
+Template/Release/
+*.sdf
+*.user
+Template/Template/imgui.ini
+Template/Template/Debug/
+Template/Debug/
+Clicker/Clicker/Debug/
