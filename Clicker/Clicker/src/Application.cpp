@@ -17,7 +17,7 @@ m_currentTime(0.0f),
 m_deltaTime(0.0f),
 m_lastTime(0.0f),
 m_startDelay(3.0f),
-m_lastClickTime(14450.0f),
+m_lastClickTime(0.0f),
 m_timeSinceStart(0.0f),
 m_estimatedTimeToEnd(0.0f),
 m_rowHeight(50.f)
@@ -53,7 +53,7 @@ void Application::SetUpGLFW()
 	}
 
 	//Create a new window
-	m_pWindow = glfwCreateWindow(640, 480, "Auto Clicker", NULL, NULL);
+	m_pWindow = glfwCreateWindow(640, 200, "Auto Clicker", NULL, NULL);
 
 	//If window initialisation failed
 	if (!m_pWindow)
@@ -98,14 +98,17 @@ void Application::Update()
 	if (m_canChangeSettings == m_runningClicker)
 		m_canChangeSettings = !m_runningClicker;
 
-	//If the clicker is running
-	if (m_runningClicker)
+	//If the clicker is running and we are no longer counting down
+	if (m_runningClicker && !m_countingDown)
 	{
 		//Calculating the time since starting
 		m_timeSinceStart += m_deltaTime;
 
 		//counting down the estimated end
 		m_estimatedTimeToEnd -= m_deltaTime;
+
+		//counting up from the last click
+		m_lastClickTime += m_deltaTime;
 	}
 	else
 	{
@@ -195,15 +198,12 @@ void Application::DrawSettings()
 	ImGui::SameLine();
 	if (ImGui::BeginChild("Setting3", ImVec2(m_columnWidth, m_rowHeight), 1, flags))
 	{
-		//creating an int
-		int a = (int)m_startDelay;
 		ImGui::Text("Start Delay (sec)");
-		ImGui::InputInt("", &a, 1, 1, 0);
-		if (m_startDelay < 0)
-			m_startDelay = 0;
+		ImGui::InputInt("", &m_startDelay, 1, 1, 0);
 
-		//setting the new start value
-		m_startDelay = (float)a;
+		//if we are not couting down set the timer to the current count down value
+		if (!m_countingDown)
+		m_countDownTimer = (float)m_startDelay;
 
 	}ImGui::EndChild();
 	//--------------------------------------------------------------------------
@@ -235,7 +235,7 @@ void Application::DrawSettings()
 	//Setting6
 	//--------------------------------------------------------------------------
 	ImGui::SameLine();
-	if (ImGui::BeginChild("Setting6", ImVec2(m_columnWidth, m_row2Height), 1, 0))
+	if (ImGui::BeginChild("Setting6", ImVec2(m_columnWidth, m_row2Height), 1, flags))
 	{
 		std::string lastTime = std::to_string(m_lastClickTime);
 		std::string SinceStart = std::to_string(m_timeSinceStart);
@@ -252,31 +252,35 @@ void Application::DrawSettings()
 void Application::DrawStartEndButton()
 {
 	std::string text;
-	if (m_runningClicker)
+	if (m_runningClicker && !m_countingDown)
 		text = "End\n ";
 	else
 	{
 		text = "Start\n  ";
-		text += std::to_string(m_startDelay);
+		text += std::to_string(m_countDownTimer);
 	}
 
 	ImGui::Dummy(ImVec2(m_columnWidth, m_rowHeight + 5));
 	ImGui::SameLine();
-	if (ImGui::Button(text.c_str(), ImVec2(m_columnWidth + 1, m_rowHeight + 5)))
-		m_countDown = !m_countDown;
 
-	//TODO Fix start delay being an int  
+	if (ImGui::Button(text.c_str(), ImVec2(m_columnWidth + 1, m_rowHeight + 5)))
+	{
+		//if the clicker isnt running when we press the button set countdown to true
+		if (!m_runningClicker)
+			m_countingDown = true;
+		m_runningClicker = !m_runningClicker;
+	}
 
 	//will countdown the start delay
-	if (m_startDelay > 0 && m_countDown)
+	if (m_countingDown)
 	{
-		m_startDelay -= m_deltaTime;
+		m_countDownTimer -= m_deltaTime;
 	}
-	else if (m_startDelay <= 0 && m_countDown)
+	
+	if (m_countDownTimer <= 0 && m_countingDown)
 	{
-		//once the count down is complete start running the clicker
-		m_runningClicker = !m_runningClicker;
-		m_countDown = !m_countDown;
+		m_countDownTimer = 0.0f;
+		m_countingDown = false;
 	}
 }
 
