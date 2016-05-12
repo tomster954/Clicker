@@ -17,9 +17,10 @@ m_currentTime(0.0f),
 m_deltaTime(0.0f),
 m_lastTime(0.0f),
 m_startDelay(3.0f),
-m_lastClickTime(0.0f),
+m_lastClickTime(14450.0f),
 m_timeSinceStart(0.0f),
-m_estimatedTimeToEnd(0.0f)
+m_estimatedTimeToEnd(0.0f),
+m_rowHeight(50.f)
 {
 	//Sets up GLFW
 	SetUpGLFW();
@@ -92,15 +93,38 @@ void Application::Update()
 	m_currentTime = (float)glfwGetTime();
 	m_deltaTime = m_currentTime - m_lastTime;
 	m_lastTime = m_currentTime;
+
+	//set whether the user can change settings
+	if (m_canChangeSettings == m_runningClicker)
+		m_canChangeSettings = !m_runningClicker;
+
+	//If the clicker is running
+	if (m_runningClicker)
+	{
+		//Calculating the time since starting
+		m_timeSinceStart += m_deltaTime;
+
+		//counting down the estimated end
+		m_estimatedTimeToEnd -= m_deltaTime;
+	}
+	else
+	{
+		//Sets the time since running to 0
+		if (m_timeSinceStart > 0)
+			m_timeSinceStart = 0;
+
+		//while changing setting the estimated end is calculated
+		m_estimatedTimeToEnd = (m_startEndTimes[1] - (m_startEndTimes[1] - m_startEndTimes[0]) / (m_clicks + 1)) * m_repeatAmount;
+	}
+	
+	//Size of the individual settings blocks
+	m_columnWidth = m_windowWidth * 0.33 - 4;
+	m_row2Height = m_rowHeight + 5;
 }
 
 void Application::Draw()
 {
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-	
-	float colwidth = m_windowWidth * 0.33 - 4;
-	float row1Height = 50.f;
-	float row2Height = 55.f;
 
 	//Render new frame
 	ImGui_ImplGlfw_NewFrame();
@@ -114,85 +138,11 @@ void Application::Draw()
 		//BEGIN
 		if (ImGui::Begin("Auto Clicker		By Tom Solarino		version 1.0", NULL, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_ShowBorders))
 		{
-			//Setting 1
-			//--------------------------------------------------------------------------
-			if (ImGui::BeginChild("Setting1", ImVec2(colwidth, row1Height), 1, 0))
-			{				
-				ImGui::Text("Clicks	");
-				ImGui::InputInt("", &m_clicks, 1, 1, 0);
-			}ImGui::EndChild();
-			//--------------------------------------------------------------------------
+			//Draw the setting and times
+			DrawSettings();
 
-			//Setting2
-			//--------------------------------------------------------------------------
-			ImGui::SameLine();
-			if (ImGui::BeginChild("Setting2", ImVec2(colwidth, row1Height), 1, 0))
-			{				
-				ImGui::Text("Click Between (sec)");
-				ImGui::InputFloat2("", &m_startEndTimes[0], 2, 0);
-			}ImGui::EndChild();
-			//--------------------------------------------------------------------------
-			
-			//Setting3
-			//--------------------------------------------------------------------------
-			ImGui::SameLine();
-			if (ImGui::BeginChild("Setting3", ImVec2(colwidth, row1Height), 1, 0))
-			{
-				ImGui::Text("Start Delay (sec)");
-				ImGui::InputFloat("", &m_startDelay, 0.1f, 1.0f, 2, 0);
-				if (m_startDelay < 0)
-					m_startDelay = 0;
-			}ImGui::EndChild();
-			//--------------------------------------------------------------------------
-
-			//Setting4
-			//--------------------------------------------------------------------------
-			if (ImGui::BeginChild("Setting4", ImVec2(colwidth, row2Height), 1, 0))
-			{ 
-				if (!m_repeat)
-					m_repeatAmount = 0;
-
-				ImGui::Checkbox("Repeat", &m_repeat);
-				ImGui::InputInt("", &m_repeatAmount, 1, 1, 0);
-			}ImGui::EndChild();
-			//--------------------------------------------------------------------------
-
-			//Setting5
-			//--------------------------------------------------------------------------
-			ImGui::SameLine();
-			if (ImGui::BeginChild("Setting5", ImVec2(colwidth, row2Height), 1, 0))
-			{
-				ImGui::Checkbox("Randomise clicks", &m_randomClicks);
-			}ImGui::EndChild();
-			//--------------------------------------------------------------------------
-
-			//Setting6
-			//--------------------------------------------------------------------------
-			ImGui::SameLine();
-			if (ImGui::BeginChild("Setting6", ImVec2(colwidth, row2Height), 1, 0))
-			{
-				const char* lastTime = std::to_string(m_lastClickTime).c_str();
-				const char* SinceStart = std::to_string(m_timeSinceStart).c_str();
-				const char* EndTime = std::to_string(m_estimatedTimeToEnd).c_str();
-
-				ImGui::TextColored(ImVec4(0.0f, 1.0f, 0.1f, 1.0f), "Last Click:-------|"); ImGui::SameLine(); ImGui::Text(lastTime);
-				ImGui::TextColored(ImVec4(0.0f, 1.0f, 0.1f, 1.0f), "Time since start:-|"); ImGui::SameLine(); ImGui::Text(SinceStart);
-				ImGui::TextColored(ImVec4(0.0f, 1.0f, 0.1f, 1.0f), "Estimated end:----|"); ImGui::SameLine(); ImGui::Text(EndTime);
-				
-			}ImGui::EndChild();
-			//--------------------------------------------------------------------------
-			
 			//Start button
-			//--------------------------------------------------------------------------
-			ImGui::Dummy(ImVec2(colwidth, row2Height));
-			ImGui::SameLine();
-			std::string text = "Start\n";
-			text += std::to_string(m_startDelay);
-			if (ImGui::Button(text.c_str(), ImVec2(colwidth + 1, row2Height)))
-			{
-			
-			}
-			//--------------------------------------------------------------------------
+			DrawStartEndButton();
 
 			ImGui::Separator();			
 		}
@@ -203,6 +153,131 @@ void Application::Draw()
 		
 	//Render IMGUI
 	ImGui::Render();
+}
+
+void Application::DrawSettings()
+{
+	//This makes sure you can only change setting when not running the clicker
+	ImGuiWindowFlags flags;
+	if (!m_canChangeSettings)
+		flags = ImGuiWindowFlags_NoInputs;
+	else
+		flags = 0;
+
+	//Setting 1
+	//--------------------------------------------------------------------------
+	if (ImGui::BeginChild("Setting1", ImVec2(m_columnWidth, m_rowHeight), 1, flags))
+	{
+		ImGui::Text("Clicks	");
+		ImGui::InputInt("", &m_clicks, 1, 1, 0);
+		if (m_clicks < 1)
+			m_clicks = 1;
+	}ImGui::EndChild();
+	//--------------------------------------------------------------------------
+
+	//Setting2
+	//--------------------------------------------------------------------------
+	ImGui::SameLine();
+	if (ImGui::BeginChild("Setting2", ImVec2(m_columnWidth, m_rowHeight), 1, flags))
+	{
+		ImGui::Text("Click Between (sec)");
+		ImGui::InputFloat2("", &m_startEndTimes[0], 2, 0);
+		if (m_startEndTimes[0] < 0)
+			m_startEndTimes[0] = 0;
+		if (m_startEndTimes[1] < 0)
+			m_startEndTimes[1] = 0;
+
+	}ImGui::EndChild();
+	//--------------------------------------------------------------------------
+
+	//Setting3
+	//--------------------------------------------------------------------------
+	ImGui::SameLine();
+	if (ImGui::BeginChild("Setting3", ImVec2(m_columnWidth, m_rowHeight), 1, flags))
+	{
+		//creating an int
+		int a = (int)m_startDelay;
+		ImGui::Text("Start Delay (sec)");
+		ImGui::InputInt("", &a, 1, 1, 0);
+		if (m_startDelay < 0)
+			m_startDelay = 0;
+
+		//setting the new start value
+		m_startDelay = (float)a;
+
+	}ImGui::EndChild();
+	//--------------------------------------------------------------------------
+
+	//Setting4
+	//--------------------------------------------------------------------------
+	if (ImGui::BeginChild("Setting4", ImVec2(m_columnWidth, m_row2Height), 1, flags))
+	{
+		ImGui::Checkbox("Repeat", &m_repeat);
+		ImGui::InputInt("", &m_repeatAmount, 1, 1, 0);
+
+		if (!m_repeat)
+			m_repeatAmount = 0;
+		if (m_repeatAmount < 1)
+			m_repeatAmount = 1;
+
+	}ImGui::EndChild();
+	//--------------------------------------------------------------------------
+
+	//Setting5
+	//--------------------------------------------------------------------------
+	ImGui::SameLine();
+	if (ImGui::BeginChild("Setting5", ImVec2(m_columnWidth, m_row2Height), 1, flags))
+	{
+		ImGui::Checkbox("Randomise clicks", &m_randomClicks);
+	}ImGui::EndChild();
+	//--------------------------------------------------------------------------
+
+	//Setting6
+	//--------------------------------------------------------------------------
+	ImGui::SameLine();
+	if (ImGui::BeginChild("Setting6", ImVec2(m_columnWidth, m_row2Height), 1, 0))
+	{
+		std::string lastTime = std::to_string(m_lastClickTime);
+		std::string SinceStart = std::to_string(m_timeSinceStart);
+		std::string EndTime = std::to_string(m_estimatedTimeToEnd);
+
+		ImGui::TextColored(ImVec4(0.0f, 1.0f, 0.1f, 1.0f), "Last Click:-------|"); ImGui::SameLine(); ImGui::Text(lastTime.c_str());
+		ImGui::TextColored(ImVec4(0.0f, 1.0f, 0.1f, 1.0f), "Time since start:-|"); ImGui::SameLine(); ImGui::Text(SinceStart.c_str());
+		ImGui::TextColored(ImVec4(0.0f, 1.0f, 0.1f, 1.0f), "Estimated end:----|"); ImGui::SameLine(); ImGui::Text(EndTime.c_str());
+	}ImGui::EndChild();
+	//--------------------------------------------------------------------------
+
+}
+
+void Application::DrawStartEndButton()
+{
+	std::string text;
+	if (m_runningClicker)
+		text = "End\n ";
+	else
+	{
+		text = "Start\n  ";
+		text += std::to_string(m_startDelay);
+	}
+
+	ImGui::Dummy(ImVec2(m_columnWidth, m_rowHeight + 5));
+	ImGui::SameLine();
+	if (ImGui::Button(text.c_str(), ImVec2(m_columnWidth + 1, m_rowHeight + 5)))
+		m_countDown = !m_countDown;
+
+	//TODO Fix start delay being an int  
+
+	//will countdown the start delay
+	if (m_startDelay > 0 && m_countDown)
+	{
+		m_startDelay -= m_deltaTime;
+	}
+	else if (m_startDelay <= 0 && m_countDown)
+	{
+		//once the count down is complete start running the clicker
+		m_runningClicker = !m_runningClicker;
+		m_countDown = !m_countDown;
+	}
 }
 
 void Application::SetOrPopStyles(bool a_set)
