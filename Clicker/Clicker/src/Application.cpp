@@ -3,6 +3,7 @@
 #include <imgui.h>
 #include "imgui_impl_glfw.h"
 
+#include <Windows.h>
 #include <glfw3.h>
 #include <iostream>
 #include <string>
@@ -20,7 +21,10 @@ m_startDelay(3.0f),
 m_lastClickTime(0.0f),
 m_timeSinceStart(0.0f),
 m_estimatedTimeToEnd(0.0f),
-m_rowHeight(50.f)
+m_rowHeight(50.f),
+m_clicks(0),
+m_clickCount(0),
+m_repeatCount(0)
 {
 	//Sets up GLFW
 	SetUpGLFW();
@@ -101,23 +105,36 @@ void Application::Update()
 	//If the clicker is running and we are no longer counting down
 	if (m_runningClicker && !m_countingDown)
 	{
+		//manages clicking
+		ManageClicks();
+
+		//counting up from the last click
+		m_lastClickTime += m_deltaTime;
+
 		//Calculating the time since starting
 		m_timeSinceStart += m_deltaTime;
 
 		//counting down the estimated end
 		m_estimatedTimeToEnd -= m_deltaTime;
-
-		//counting up from the last click
-		m_lastClickTime += m_deltaTime;
 	}
 	else
 	{
+		//Sets the time since clicking to 0
+		if (m_lastClickTime > 0)
+			m_lastClickTime = 0;
+
 		//Sets the time since running to 0
 		if (m_timeSinceStart > 0)
 			m_timeSinceStart = 0;
 
+		//time between each click
+		m_clickIntervals = (m_startEndTimes[1] - m_startEndTimes[0]) / (m_clicks + 1);
+
 		//while changing setting the estimated end is calculated
-		m_estimatedTimeToEnd = (m_startEndTimes[1] - (m_startEndTimes[1] - m_startEndTimes[0]) / (m_clicks + 1)) * m_repeatAmount;
+		m_estimatedTimeToEnd = TimeUntilCompletion();
+
+		//before we start calculate the time until the next click
+		m_timeUntilNextClick = TimeUntilNextClick();
 	}
 	
 	//Size of the individual settings blocks
@@ -189,6 +206,10 @@ void Application::DrawSettings()
 			m_startEndTimes[0] = 0;
 		if (m_startEndTimes[1] < 0)
 			m_startEndTimes[1] = 0;
+
+		//checks that the start time is less than the end time
+		if (m_startEndTimes[1] < m_startEndTimes[0])
+			m_startEndTimes[1] = m_startEndTimes[0];
 
 	}ImGui::EndChild();
 	//--------------------------------------------------------------------------
@@ -268,7 +289,7 @@ void Application::DrawStartEndButton()
 		//if the clicker isnt running when we press the button set countdown to true
 		if (!m_runningClicker)
 			m_countingDown = true;
-		m_runningClicker = !m_runningClicker;
+		SetRunning(!m_runningClicker);
 	}
 
 	//will countdown the start delay
@@ -305,4 +326,96 @@ void Application::SetOrPopStyles(bool a_set)
 		ImGui::PopStyleVar();
 		ImGui::PopStyleVar();
 	}
+}
+
+void Application::ManageClicks()
+{
+	if (m_timeSinceStart >= m_timeUntilNextClick)
+	{
+		Click();
+
+		//when a click occurs recalculate the time until end
+		m_estimatedTimeToEnd = TimeUntilCompletion();
+
+		//when a click occurs recalculate the time until next click
+		m_timeUntilNextClick = TimeUntilNextClick();
+	}
+}
+
+float Application::TimeUntilCompletion()
+{
+	//amount of time passed so far based off clicks
+	float timeSoFar = m_clickIntervals * (m_clickCount);
+
+	//one repeats worth of time
+	float oneRepeatTime = m_startEndTimes[1] - m_clickIntervals;
+	
+	//The total amount of time
+	float total = oneRepeatTime * (m_repeatAmount - m_repeatCount);
+
+	//taking away how much time has gone by
+	total -= timeSoFar;
+
+	return total;
+}
+
+void Application::SetRunning(bool a_running)
+{
+	m_runningClicker = a_running;
+}
+
+void Application::Click()
+{
+	m_clickCount++;
+	m_lastClickTime = 0;
+
+	//Checks to see if we have finished clicking for one repeat
+	if (m_clickCount >= m_clicks)
+	{
+		m_repeatCount++;
+		m_clickCount = 0;
+
+		if (m_repeatCount >= m_repeatAmount)
+		{
+			SetRunning(false);
+			m_repeatCount = 0;
+		}
+	}
+
+	//Left Click
+	INPUT    Input = { 0 };
+	// left down 
+	Input.type = INPUT_MOUSE;
+	Input.mi.dwFlags = MOUSEEVENTF_LEFTDOWN;
+	::SendInput(1, &Input, sizeof(INPUT));
+
+	// left up
+	::ZeroMemory(&Input, sizeof(INPUT));
+	Input.type = INPUT_MOUSE;
+	Input.mi.dwFlags = MOUSEEVENTF_LEFTUP;
+	::SendInput(1, &Input, sizeof(INPUT));
+}
+
+float Application::TimeUntilNextClick()
+{
+	//Checks thats we have click intervals
+	if (m_clickIntervals <= 0)
+		return m_startEndTimes[0];
+
+	float nextTime;
+
+	int Num = m_clickIntervals * 1000;
+	float randClick = rand() % Num;     // randClick in the range 1 to 100
+	randClick /= 1000;
+
+	//Time when the next click occurs
+	if (m_randomClicks)
+		nextTime = m_startEndTimes[0] + m_clickIntervals * m_clickCount + randClick;//calcs the time one click short an adds the rand on the end
+	else
+		nextTime = m_startEndTimes[0] + m_clickIntervals * (m_clickCount + 1);		//calcs the time until next click
+
+	//adding the previouse repeats time to the next repeat clicks
+	nextTime += (m_startEndTimes[1] - m_clickIntervals) * m_repeatCount;
+
+	return nextTime;
 }
