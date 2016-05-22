@@ -119,9 +119,15 @@ void Application::Update()
 	}
 	else
 	{
-		//Sets the time since clicking to 0
+		//Set counters and timers back to default values.
 		if (m_lastClickTime > 0)
 			m_lastClickTime = 0;
+
+		if (m_clickCount > 0)
+			m_clickCount = 0;
+
+		if (m_repeatCount > 0)
+			m_repeatCount = 0;
 
 		//Sets the time since running to 0
 		if (m_timeSinceStart > 0)
@@ -156,7 +162,7 @@ void Application::Draw()
 		//Set styles
 		SetOrPopStyles(true);
 		//BEGIN
-		if (ImGui::Begin("Auto Clicker		By Tom Solarino		version 1.0", NULL, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_ShowBorders))
+		if (ImGui::Begin("Auto Clicker		By Tom Solarino		version 1.1", NULL, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_ShowBorders))
 		{
 			//Draw the setting and times
 			DrawSettings();
@@ -258,11 +264,11 @@ void Application::DrawSettings()
 	ImGui::SameLine();
 	if (ImGui::BeginChild("Setting6", ImVec2(m_columnWidth, m_row2Height), 1, flags))
 	{
-		std::string lastTime = std::to_string(m_lastClickTime);
+		std::string lastTime = std::to_string(m_timeUntilNextClick);
 		std::string SinceStart = std::to_string(m_timeSinceStart);
 		std::string EndTime = std::to_string(m_estimatedTimeToEnd);
 
-		ImGui::TextColored(ImVec4(0.0f, 1.0f, 0.1f, 1.0f), "Last Click:-------|"); ImGui::SameLine(); ImGui::Text(lastTime.c_str());
+		ImGui::TextColored(ImVec4(0.0f, 1.0f, 0.1f, 1.0f), "Next Click:-------|"); ImGui::SameLine(); ImGui::Text(lastTime.c_str());
 		ImGui::TextColored(ImVec4(0.0f, 1.0f, 0.1f, 1.0f), "Time since start:-|"); ImGui::SameLine(); ImGui::Text(SinceStart.c_str());
 		ImGui::TextColored(ImVec4(0.0f, 1.0f, 0.1f, 1.0f), "Estimated end:----|"); ImGui::SameLine(); ImGui::Text(EndTime.c_str());
 	}ImGui::EndChild();

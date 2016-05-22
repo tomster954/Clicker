@@ -57,7 +57,7 @@ private:
 	float m_lastClickTime;		//Time Since Last Click
 	float m_timeSinceStart;		//Time Since Starting Clicking
 	float m_estimatedTimeToEnd;	//Enstimated Time Until Completion of clicking
-	float m_clickIntervals;		//How often a click occurs
+	float m_clickIntervals;		//How often a click occurs in seconds
 	float m_timeUntilNextClick;	//Time until next click occurs
 
 	bool m_repeat;				//Does the user want to repeat
