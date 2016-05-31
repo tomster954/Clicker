@@ -8,10 +8,24 @@
 #include <iostream>
 #include <string>
 
+bool g_mouseLDown;
+
 void error_callback(int error, const char* description)
 {
 	fputs(description, stderr);
 }
+
+//Checking for clicks outside the app
+LRESULT CALLBACK MouseHookProc(int nCode, WPARAM wParam, LPARAM lParam) {
+	if (nCode >= 0) {
+		if (wParam == WM_LBUTTONDOWN)
+			g_mouseLDown = true;
+		if (wParam == WM_LBUTTONUP)
+			g_mouseLDown = false;
+	}
+	return CallNextHookEx(0, nCode, wParam, lParam);
+}
+HHOOK mousehook = SetWindowsHookEx(WH_MOUSE_LL, MouseHookProc, NULL, 0);
 
 Application::Application() :
 m_currentTime(0.0f),
@@ -56,6 +70,8 @@ void Application::SetUpGLFW()
 		return;
 	}
 
+	glfwWindowHint(GLFW_FLOATING, GL_TRUE);
+
 	//Create a new window
 	m_pWindow = glfwCreateWindow(640, 200, "Auto Clicker", NULL, NULL);
 
@@ -98,54 +114,32 @@ void Application::Update()
 	m_deltaTime = m_currentTime - m_lastTime;
 	m_lastTime = m_currentTime;
 
+	//Size of the individual settings blocks
+	m_columnWidth = m_windowWidth * 0.33 - 4;
+	m_row2Height = m_rowHeight + 5;
+
 	//set whether the user can change settings
 	if (m_canChangeSettings == m_runningClicker)
 		m_canChangeSettings = !m_runningClicker;
 
+	//uses a global mouse down to check for clicks our of the app
+	if (m_selectingColour && g_mouseLDown)
+	{
+		std::array<float, 3> buff = FindColourAtPointer();
+		m_clickColour[0] = buff[0];
+		m_clickColour[1] = buff[1];
+		m_clickColour[2] = buff[2];
+	}
+
 	//If the clicker is running and we are no longer counting down
 	if (m_runningClicker && !m_countingDown)
 	{
-		//manages clicking
-		ManageClicks();
-
-		//counting up from the last click
-		m_lastClickTime += m_deltaTime;
-
-		//Calculating the time since starting
-		m_timeSinceStart += m_deltaTime;
-
-		//counting down the estimated end
-		m_estimatedTimeToEnd -= m_deltaTime;
+		RunClicker();
 	}
 	else
 	{
-		//Set counters and timers back to default values.
-		if (m_lastClickTime > 0)
-			m_lastClickTime = 0;
-
-		if (m_clickCount > 0)
-			m_clickCount = 0;
-
-		if (m_repeatCount > 0)
-			m_repeatCount = 0;
-
-		//Sets the time since running to 0
-		if (m_timeSinceStart > 0)
-			m_timeSinceStart = 0;
-
-		//time between each click
-		m_clickIntervals = (m_startEndTimes[1] - m_startEndTimes[0]) / (m_clicks + 1);
-
-		//while changing setting the estimated end is calculated
-		m_estimatedTimeToEnd = TimeUntilCompletion();
-
-		//before we start calculate the time until the next click
-		m_timeUntilNextClick = TimeUntilNextClick();
+		ChangeSettings();
 	}
-	
-	//Size of the individual settings blocks
-	m_columnWidth = m_windowWidth * 0.33 - 4;
-	m_row2Height = m_rowHeight + 5;
 }
 
 void Application::Draw()
@@ -162,7 +156,7 @@ void Application::Draw()
 		//Set styles
 		SetOrPopStyles(true);
 		//BEGIN
-		if (ImGui::Begin("Auto Clicker		By Tom Solarino		version 1.1", NULL, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_ShowBorders))
+		if (ImGui::Begin("Auto Clicker		By Tom Solarino		version 1.2", NULL, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_ShowBorders))
 		{
 			//Draw the setting and times
 			DrawSettings();
@@ -181,6 +175,50 @@ void Application::Draw()
 	ImGui::Render();
 }
 
+void Application::RunClicker()
+{
+	//manages clicking
+	ManageClicks();
+
+	//counting up from the last click
+	m_lastClickTime += m_deltaTime;
+
+	//Calculating the time since starting
+	m_timeSinceStart += m_deltaTime;
+
+	//counting down the estimated end
+	m_estimatedTimeToEnd -= m_deltaTime;
+}
+
+void Application::ChangeSettings()
+{
+	//time between each click
+	m_clickIntervals = (m_startEndTimes[1] - m_startEndTimes[0]) / (m_clicks + 1);
+
+	//while changing setting the estimated end is calculated
+	m_estimatedTimeToEnd = TimeUntilCompletion();
+
+	//before we start calculate the time until the next click
+	m_timeUntilNextClick = TimeUntilNextClick();
+}
+
+void Application::Reset()
+{
+	//Set counters and timers back to default values.
+	if (m_lastClickTime > 0)
+		m_lastClickTime = 0;
+
+	if (m_clickCount > 0)
+		m_clickCount = 0;
+
+	if (m_repeatCount > 0)
+		m_repeatCount = 0;
+
+	//Sets the time since running to 0
+	if (m_timeSinceStart > 0)
+		m_timeSinceStart = 0;
+}
+
 void Application::DrawSettings()
 {
 	//This makes sure you can only change setting when not running the clicker
@@ -191,7 +229,6 @@ void Application::DrawSettings()
 		flags = 0;
 
 	//Setting 1
-	//--------------------------------------------------------------------------
 	if (ImGui::BeginChild("Setting1", ImVec2(m_columnWidth, m_rowHeight), 1, flags))
 	{
 		ImGui::Text("Clicks	");
@@ -202,7 +239,6 @@ void Application::DrawSettings()
 	//--------------------------------------------------------------------------
 
 	//Setting2
-	//--------------------------------------------------------------------------
 	ImGui::SameLine();
 	if (ImGui::BeginChild("Setting2", ImVec2(m_columnWidth, m_rowHeight), 1, flags))
 	{
@@ -221,7 +257,6 @@ void Application::DrawSettings()
 	//--------------------------------------------------------------------------
 
 	//Setting3
-	//--------------------------------------------------------------------------
 	ImGui::SameLine();
 	if (ImGui::BeginChild("Setting3", ImVec2(m_columnWidth, m_rowHeight), 1, flags))
 	{
@@ -236,7 +271,6 @@ void Application::DrawSettings()
 	//--------------------------------------------------------------------------
 
 	//Setting4
-	//--------------------------------------------------------------------------
 	if (ImGui::BeginChild("Setting4", ImVec2(m_columnWidth, m_row2Height), 1, flags))
 	{
 		ImGui::Checkbox("Repeat", &m_repeat);
@@ -251,7 +285,6 @@ void Application::DrawSettings()
 	//--------------------------------------------------------------------------
 
 	//Setting5
-	//--------------------------------------------------------------------------
 	ImGui::SameLine();
 	if (ImGui::BeginChild("Setting5", ImVec2(m_columnWidth, m_row2Height), 1, flags))
 	{
@@ -260,9 +293,23 @@ void Application::DrawSettings()
 	//--------------------------------------------------------------------------
 
 	//Setting6
-	//--------------------------------------------------------------------------
 	ImGui::SameLine();
 	if (ImGui::BeginChild("Setting6", ImVec2(m_columnWidth, m_row2Height), 1, flags))
+	{ 
+		ImGui::Checkbox("Click on colour", &m_clickOnColour);
+		ImGui::ColorEdit3("", m_clickColour);
+		ImGui::SameLine();
+		if (ImGui::Button("Pick", ImVec2(35, 18)))
+		{
+			m_selectingColour = true;
+		}
+
+		ImGui::SliderFloat("Tol", &m_colourTolerance, 0, 150, "%.0f", 1);
+	}ImGui::EndChild();
+	//--------------------------------------------------------------------------
+
+	//Setting7
+	if (ImGui::BeginChild("Setting7", ImVec2(m_columnWidth, m_row2Height), 1, flags))
 	{
 		std::string lastTime = std::to_string(m_timeUntilNextClick);
 		std::string SinceStart = std::to_string(m_timeSinceStart);
@@ -273,7 +320,6 @@ void Application::DrawSettings()
 		ImGui::TextColored(ImVec4(0.0f, 1.0f, 0.1f, 1.0f), "Estimated end:----|"); ImGui::SameLine(); ImGui::Text(EndTime.c_str());
 	}ImGui::EndChild();
 	//--------------------------------------------------------------------------
-
 }
 
 void Application::DrawStartEndButton()
@@ -287,7 +333,7 @@ void Application::DrawStartEndButton()
 		text += std::to_string(m_countDownTimer);
 	}
 
-	ImGui::Dummy(ImVec2(m_columnWidth, m_rowHeight + 5));
+	//ImGui::Dummy(ImVec2(m_columnWidth, m_rowHeight + 5));
 	ImGui::SameLine();
 
 	if (ImGui::Button(text.c_str(), ImVec2(m_columnWidth + 1, m_rowHeight + 5)))
@@ -300,9 +346,7 @@ void Application::DrawStartEndButton()
 
 	//will countdown the start delay
 	if (m_countingDown)
-	{
 		m_countDownTimer -= m_deltaTime;
-	}
 	
 	if (m_countDownTimer <= 0 && m_countingDown)
 	{
@@ -368,6 +412,9 @@ float Application::TimeUntilCompletion()
 void Application::SetRunning(bool a_running)
 {
 	m_runningClicker = a_running;
+
+	if (!a_running)
+		Reset();
 }
 
 void Application::Click()
@@ -388,6 +435,34 @@ void Application::Click()
 		}
 	}
 
+	//Check if the color is right
+	if (m_clickOnColour)
+	{
+		m_colourTolerance;
+		m_clickColour;
+		std::array<float, 3> currentColour = FindColourAtPointer();
+
+		//is true if colour on screen is within the tolerance
+		bool r=0, g=0, b=0;
+		float tol = m_colourTolerance / 255;
+
+		if (m_clickColour[0] - tol <= currentColour[0] &&
+			m_clickColour[0] + tol >= currentColour[0])
+			r = true;
+
+		if (m_clickColour[1] - tol <= currentColour[1] &&
+			m_clickColour[1] + tol >= currentColour[1])
+			g = true;
+
+		if (m_clickColour[2] - tol <= currentColour[2] &&
+			m_clickColour[2] + tol >= currentColour[2])
+			b = true;
+
+		//dont click if the colour isnt right
+		if (!r || !g || !b)
+			return;
+	}
+	
 	//Left Click
 	INPUT    Input = { 0 };
 	// left down 
@@ -424,4 +499,39 @@ float Application::TimeUntilNextClick()
 	nextTime += (m_startEndTimes[1] - m_clickIntervals) * m_repeatCount;
 
 	return nextTime;
+}
+
+std::array<float, 3> Application::FindColourAtPointer()
+{
+	m_selectingColour = false;
+	//TODO next click get colour;
+	POINT p;
+	COLORREF color;
+	HDC hDC;
+	BOOL b;
+
+	// Get the device context for the screen
+	hDC = GetDC(NULL());
+	//if (hDC == NULL)
+	//	TODO add to error list
+
+	// Get the current cursor position
+	b = GetCursorPos(&p);
+	//if (!b)
+	//	TODO add to error list
+
+	// Retrieve the color at that position
+	color = GetPixel(hDC, p.x, p.y);
+	//if (color == CLR_INVALID)
+	//	TODO add to error list
+
+	// Release the device context again
+	ReleaseDC(GetDesktopWindow(), hDC);
+
+	std::array< float, 3> arr;
+	arr[0] = (float)GetRValue(color) / 255.0f;
+	arr[1] = (float)GetGValue(color) / 255.0f;
+	arr[2] = (float)GetBValue(color) / 255.0f;
+
+	return arr;
 }

@@ -5,7 +5,8 @@
 
 #ifndef STARTUP
 #define STARTUP
-
+#include <Windows.h>
+#include <array>
 struct GLFWwindow;
 
 class Application
@@ -21,13 +22,23 @@ public:
 	void Draw();
 
 	void Run();
+
+	LRESULT CALLBACK MouseHookProc(int nCode, WPARAM wParam, LPARAM lParam);
+
 private:
+	void RunClicker();					//Is called in update if the clicker is running
+	void ChangeSettings();				//Is called in update if the cliccker isnt running
+
+	void Reset();						//Resets variables
+
 	void DrawSettings();				//Draws and hand;es the other settings displayed to the user
 	void DrawStartEndButton();			//Draws and handles the start/end button
 	void SetOrPopStyles(bool a_set);	//Sets or Pops all the ImGui window styles
 	void ManageClicks();				//Calculates and clicks each click
 	void SetRunning(bool a_running);	//Sets if theclicker is running or not
 	void Click();						//handles clicking the mouse
+
+	std::array<float, 3> FindColourAtPointer();	//Finds the colour of the pixel where the mouse pointer is.
 
 	float TimeUntilNextClick();			//Calculates the time until the next click
 	float TimeUntilCompletion();		//Calculates the time until completion
@@ -60,10 +71,17 @@ private:
 	float m_clickIntervals;		//How often a click occurs in seconds
 	float m_timeUntilNextClick;	//Time until next click occurs
 
+	float m_clickColour[3] = {};//the colour the clicker will only click on
+	float m_colourUnderpointer;	//The colour currently unter the mouse
+	
+	float m_colourTolerance;	//If 0 the clicker will only click on the exact colour specified
+
+	bool m_selectingColour;		//If true, the next click will select a colour
 	bool m_repeat;				//Does the user want to repeat
 	bool m_randomClicks;		//Does the user want random clicks
 	bool m_runningClicker;		//is true if the user has pressed start
 	bool m_canChangeSettings;	//Is true if the clicker ISNT running
 	bool m_countingDown;		//Is true after clicking start and will begin countdown
+	bool m_clickOnColour;		//If true, will only click on specified colour
 };
 #endif
