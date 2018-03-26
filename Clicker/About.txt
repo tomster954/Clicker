@@ -1,8 +1,1 @@
-This is a template that contains:
- - OpenGL
- - ImGui
- - RakNet
-
-Its set up and ready to go!
-
-Demo is my RakNet Messenger
+This is a auto clicker that I made
